@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sri Lanka Job News • FB Approval Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans">
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-xl">🇱🇰</div>
+        <div>
+          <h1 class="text-lg font-bold text-white">SL Job News Studio</h1>
+          <p class="text-xs text-slate-400">Sinhala Post Formatter • Job Card Generator • FB Page Approval</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2.5 flex-wrap">
+        <button id="scrapeBtn" onclick="scrapeJobs()" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold flex items-center gap-2 transition cursor-pointer">
+          <span id="scrapeSpinner" class="hidden animate-spin">⏳</span>
+          <span>🔄 Fetch New Jobs</span>
+        </button>
+        <button onclick="openModal('manualModal')" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition cursor-pointer">
+          ➕ Import Link / FB Post
+        </button>
+        <button onclick="openSettings()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-medium transition cursor-pointer">
+          ⚙️ Settings & Sources
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden max-w-md px-4 py-3 rounded-xl shadow-2xl border text-sm font-medium"></div>
+
+  <!-- Main -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+    <!-- Status Tabs -->
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-6">
+      <div class="flex gap-2 bg-slate-900 p-1 rounded-xl border border-slate-800">
+        <button onclick="switchTab('pending')" data-tab="pending" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white cursor-pointer">
+          Pending Review <span id="count-pending" class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-black/30">0</span>
+        </button>
+        <button onclick="switchTab('published')" data-tab="published" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white cursor-pointer">
+          Published <span id="count-published" class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-slate-800">0</span>
+        </button>
+        <button onclick="switchTab('rejected')" data-tab="rejected" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white cursor-pointer">
+          Rejected <span id="count-rejected" class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-slate-800">0</span>
+        </button>
+        <button onclick="switchTab('all')" data-tab="all" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white cursor-pointer">
+          All <span id="count-all" class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-slate-800">0</span>
+        </button>
+        <button onclick="switchTab('analytics')" data-tab="analytics" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white cursor-pointer">
+          📊 Analytics
+        </button>
+      </div>
+
+      <div id="fbStatusPill" class="text-xs px-3 py-1.5 rounded-full border border-slate-700 bg-slate-900 text-slate-400">
+        Checking Facebook config...
+      </div>
+    </div>
+
+    <!-- Jobs List -->
+    <div id="jobsContainer" class="space-y-6"></div>
+  </main>
+
+  <!-- Manual Import Modal -->
+  <div id="manualModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 hidden items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold">➕ Import Job Link or Facebook Post</h2>
+        <button onclick="closeModal('manualModal')" class="text-slate-400 hover:text-white text-xl cursor-pointer">&times;</button>
+      </div>
+      <p class="text-xs text-slate-400">
+        Website link එකක් හෝ Facebook page එකකින් (උදා: goodjoblk) copy කරපු විස්තර මෙතන paste කරන්න. System එකෙන් ඒක සිංහලෙන් හදලා Job Card එකත් generate කරයි.
+      </p>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Job / Post URL (Optional if pasting text)</label>
+          <input id="mUrl" type="url" placeholder="https://..." class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Title / Role (Optional)</label>
+            <input id="mTitle" type="text" placeholder="e.g. Management Assistant" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Company / Institution</label>
+            <input id="mCompany" type="text" placeholder="e.g. Bank of Ceylon" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Closing Date (Optional)</label>
+            <input id="mClosing" type="text" placeholder="e.g. 2026-12-10" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Category</label>
+            <select id="mCategory" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm">
+              <option value="">Auto Detect</option>
+              <option value="Government">Government (රජයේ)</option>
+              <option value="Banking & Finance">Banking & Finance</option>
+              <option value="IT & Engineering">IT & Engineering</option>
+              <option value="Private">Private (පෞද්ගලික)</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Paste Job Details / FB Post Text</label>
+          <textarea id="mText" rows="5" placeholder="Paste full job description here..." class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm"></textarea>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal('manualModal')" class="px-4 py-2 rounded-lg bg-slate-800 text-sm cursor-pointer">Cancel</button>
+        <button onclick="submitManualImport()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold cursor-pointer">Format & Add to Queue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 hidden items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold">⚙️ Settings & Job Sources</h2>
+        <button onclick="closeModal('settingsModal')" class="text-slate-400 hover:text-white text-xl cursor-pointer">&times;</button>
+      </div>
+
+      <!-- FB & AI Settings -->
+      <div class="space-y-3 border-b border-slate-800 pb-5">
+        <h3 class="text-sm font-semibold text-emerald-400">Facebook Page & AI Configuration</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Page Brand Name (Shown on Job Cards)</label>
+            <input id="sBrand" type="text" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Facebook Page ID</label>
+            <input id="sPageId" type="text" placeholder="e.g. 123456789012345" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Facebook Page Access Token (leave blank to keep existing)</label>
+          <input id="sFbToken" type="password" placeholder="EAA..." class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Gemini API Key (Optional - for AI Sinhala translation, leave blank to keep existing)</label>
+          <input id="sGemini" type="password" placeholder="AIza..." class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm" />
+        </div>
+        <div class="flex items-center gap-2 pt-1">
+          <button onclick="saveSettingsForm()" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold cursor-pointer">Save Settings</button>
+          <button onclick="testFb()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm cursor-pointer">🔌 Test FB Connection</button>
+        </div>
+      </div>
+
+      <!-- Sources -->
+      <div class="space-y-3">
+        <h3 class="text-sm font-semibold text-indigo-400">WordPress Job Sources</h3>
+        <div id="sourcesList" class="space-y-2"></div>
+        <div class="flex gap-2 pt-2">
+          <input id="newSrcName" type="text" placeholder="Site Name (e.g. TopJobs)" class="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm" />
+          <input id="newSrcUrl" type="url" placeholder="https://example.lk" class="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm" />
+          <button onclick="addSource()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-semibold cursor-pointer">Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentTab = 'pending';
+
+    function showToast(msg, isError = false) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = `fixed bottom-5 right-5 z-50 max-w-md px-4 py-3 rounded-xl shadow-2xl border text-sm font-medium ${
+        isError ? 'bg-red-950/90 border-red-700 text-red-200' : 'bg-emerald-950/90 border-emerald-700 text-emerald-200'
+      }`;
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 4500);
+    }
+
+    function openModal(id) {
+      const m = document.getElementById(id);
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+    function closeModal(id) {
+      const m = document.getElementById(id);
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
+    async function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        if (btn.dataset.tab === tab) {
+          btn.className = 'tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white cursor-pointer';
+        } else {
+          btn.className = 'tab-btn px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:text-white cursor-pointer';
+        }
+      });
+      if (tab === 'analytics') {
+        await loadAnalytics();
+      } else {
+        await loadJobs();
+      }
+    }
+
+    let analyticsChartInstance = null;
+
+    async function loadAnalytics() {
+      const container = document.getElementById('jobsContainer');
+      container.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-400">⏳ Loading Facebook Page Views, Reach & Post Insights...</div>`;
+      const res = await fetch('/api/analytics');
+      const data = await res.json();
+      if (!data.ok) {
+        container.innerHTML = `
+          <div class="bg-rose-950/40 border border-rose-800 rounded-2xl p-8 text-center text-rose-200 space-y-2">
+            <p class="font-bold">⚠️ Facebook Analytics ගන්න බැරි වුණා</p>
+            <p class="text-sm text-rose-300">${escapeHtml(data.error)}</p>
+          </div>`;
+        return;
+      }
+
+      const t = data.totals;
+      const pi = data.page_insights || {};
+      const pg = data.page || {};
+      const summaryHtml = `
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <div class="text-xs text-slate-400">👥 Followers</div>
+            <div class="text-2xl font-bold text-white mt-1">${pg.followers ?? 0}</div>
+            <div class="text-[11px] text-emerald-400 mt-0.5">+${pi.new_follows_28d ?? 0} (28d)</div>
+          </div>
+          <div class="bg-slate-900 border border-emerald-800/50 rounded-2xl p-4">
+            <div class="text-xs text-slate-400">👁️ Post Views (Recent)</div>
+            <div class="text-2xl font-bold text-emerald-400 mt-1">${t.views}</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">Across ${t.posts} posts</div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <div class="text-xs text-slate-400">🖱️ Post Clicks</div>
+            <div class="text-2xl font-bold text-cyan-400 mt-1">${t.clicks}</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">Link & card clicks</div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <div class="text-xs text-slate-400">👍 Reactions</div>
+            <div class="text-2xl font-bold text-amber-400 mt-1">${t.reactions}</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">Likes & loves</div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <div class="text-xs text-slate-400">💬 Comments & Shares</div>
+            <div class="text-2xl font-bold text-indigo-400 mt-1">${t.comments + t.shares}</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">${t.comments} 💬 • ${t.shares} 🔁</div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+            <div class="text-xs text-slate-400">📈 Page Views (28d)</div>
+            <div class="text-2xl font-bold text-purple-400 mt-1">${pi.views_28d ?? 0}</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">${pi.engagements_28d ?? 0} engagements</div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 mt-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-white">📊 Daily Page Views & Engagements (Last 14 Days)</h3>
+            <span class="text-xs text-slate-400">${escapeHtml(pg.name || '')}</span>
+          </div>
+          <div class="h-60">
+            <canvas id="analyticsChart"></canvas>
+          </div>
+        </div>`;
+
+      const rowsHtml = data.posts.length ? data.posts.map(p => `
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+          <div class="flex gap-4 items-start">
+            ${p.full_picture ? `<img src="${escapeHtml(p.full_picture)}" class="w-20 h-20 rounded-xl object-cover border border-slate-800 shrink-0" />` : ''}
+            <div class="space-y-1.5">
+              <div class="text-sm text-slate-100 leading-snug">${escapeHtml(p.message || '(No caption)')}</div>
+              <div class="text-xs text-slate-500">${escapeHtml((p.created_time || '').replace('T', ' ').slice(0, 16))}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap shrink-0 text-xs font-semibold">
+            <span class="px-2.5 py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-800/60 text-emerald-300">👁️ ${p.views} Views</span>
+            <span class="px-2.5 py-1.5 rounded-lg bg-cyan-950/70 border border-cyan-800/60 text-cyan-300">🖱️ ${p.clicks} Clicks</span>
+            <span class="px-2.5 py-1.5 rounded-lg bg-slate-800 text-amber-300">👍 ${p.reactions}</span>
+            <span class="px-2.5 py-1.5 rounded-lg bg-slate-800 text-sky-300">💬 ${p.comments}</span>
+            <span class="px-2.5 py-1.5 rounded-lg bg-slate-800 text-indigo-300">🔁 ${p.shares}</span>
+            <span class="px-2.5 py-1.5 rounded-lg bg-purple-950/70 border border-purple-800/60 text-purple-300">⚡ ${p.engagement_rate}% ER</span>
+            ${p.permalink_url ? `<a href="${escapeHtml(p.permalink_url)}" target="_blank" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white">Open ↗</a>` : ''}
+          </div>
+        </div>
+      `).join('') : `<div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center text-slate-400">No posts found on this Facebook Page yet.</div>`;
+
+      container.innerHTML = summaryHtml + `<div class="space-y-3 mt-4">${rowsHtml}</div>`;
+
+      // Render Chart.js graph
+      const series = pi.daily_series || [];
+      const ctx = document.getElementById('analyticsChart');
+      if (ctx && window.Chart && series.length) {
+        if (analyticsChartInstance) analyticsChartInstance.destroy();
+        analyticsChartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: series.map(s => s.date.slice(5)),
+            datasets: [
+              {
+                label: 'Views',
+                data: series.map(s => s.views),
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                fill: true,
+                tension: 0.35,
+              },
+              {
+                label: 'Engagements',
+                data: series.map(s => s.engagements),
+                borderColor: '#38bdf8',
+                backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                fill: true,
+                tension: 0.35,
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#cbd5e1' } } },
+            scales: {
+              x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.1)' } },
+              y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(148,163,184,0.1)' } }
+            }
+          }
+        });
+      }
+    }
+
+    async function loadJobs() {
+      const res = await fetch(`/api/jobs?status=${currentTab}`);
+      const data = await res.json();
+      ['pending', 'published', 'rejected', 'all'].forEach(k => {
+        const el = document.getElementById(`count-${k}`);
+        if (el) el.textContent = data.counts[k] || 0;
+      });
+
+      const container = document.getElementById('jobsContainer');
+      if (!data.jobs.length) {
+        container.innerHTML = `
+          <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-12 text-center text-slate-400">
+            <p class="text-lg font-semibold mb-2">මෙම කොටසේ රැකියා දැන්වීම් නොමැත</p>
+            <p class="text-sm">උඩ තියෙන <b>🔄 Fetch New Jobs</b> button එක click කරලා Gazette.lk සහ HelloJobs.lk වලින් අලුත් jobs ගන්න.</p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = data.jobs.map(job => renderJobCard(job)).join('');
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function renderJobCard(job) {
+      const imgSrc = job.card_image_path ? `${job.card_image_path}?t=${Date.now()}` : '';
+      const isPending = job.status === 'pending';
+      const statusBadge = job.status === 'published'
+        ? `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">✅ Published</span>`
+        : job.status === 'rejected'
+        ? `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/40">❌ Rejected</span>`
+        : `<span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40">⏳ Pending Approval</span>`;
+
+      return `
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 grid grid-cols-1 lg:grid-cols-12 gap-6 shadow-lg">
+        <!-- Left: Card Preview -->
+        <div class="lg:col-span-4 flex flex-col gap-3">
+          <div class="aspect-square w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
+            ${imgSrc ? `<img id="img-${job.id}" src="${imgSrc}" class="w-full h-full object-cover" />` : `<span class="text-slate-500 text-sm">No Card Image</span>`}
+          </div>
+          <div class="flex gap-2">
+            <button onclick="saveJobEdits(${job.id}, true)" class="flex-1 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold cursor-pointer">
+              🎨 Save & Regenerate Card
+            </button>
+            <button onclick="reformatJob(${job.id})" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold cursor-pointer" title="Re-run Sinhala formatter">
+              ✨ Re-format
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: Details & Sinhala Post Editor -->
+        <div class="lg:col-span-8 flex flex-col justify-between gap-4">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
+                ${statusBadge}
+                <span class="px-2.5 py-1 rounded-full text-xs bg-slate-800 text-slate-300">${escapeHtml(job.source_name)}</span>
+                <span class="px-2.5 py-1 rounded-full text-xs bg-indigo-500/20 text-indigo-300">${escapeHtml(job.category)}</span>
+              </div>
+              ${job.source_url && !job.source_url.startsWith('manual://') ? `<a href="${escapeHtml(job.source_url)}" target="_blank" class="text-xs text-emerald-400 hover:underline">🔗 Open Original</a>` : ''}
+            </div>
+
+            <div class="text-sm font-medium text-slate-300">${escapeHtml(job.title_en)}</div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div>
+                <label class="block text-[11px] text-slate-400 mb-1">Card Headline (සිංහල)</label>
+                <input id="headline-${job.id}" value="${escapeHtml(job.card_headline_si)}" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs" />
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-400 mb-1">Company / Institution</label>
+                <input id="company-${job.id}" value="${escapeHtml(job.company)}" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs" />
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-400 mb-1">Closing Date</label>
+                <input id="closing-${job.id}" value="${escapeHtml(job.closing_date)}" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1">Facebook Post Caption (සිංහල Post එක)</label>
+              <textarea id="post-${job.id}" rows="9" class="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm leading-relaxed text-slate-100">${escapeHtml(job.sinhala_post)}</textarea>
+            </div>
+
+            ${job.error_message ? `<div class="text-xs text-rose-300 bg-rose-950/60 border border-rose-800 rounded-lg px-3 py-2">⚠️ ${escapeHtml(job.error_message)}</div>` : ''}
+            ${job.fb_post_id ? `<div class="text-xs text-emerald-300 bg-emerald-950/50 border border-emerald-800 rounded-lg px-3 py-2">✅ Facebook Post ID: ${escapeHtml(job.fb_post_id)}</div>` : ''}
+          </div>
+
+          <div class="flex items-center justify-between flex-wrap gap-3 pt-2 border-t border-slate-800">
+            <div class="flex items-center gap-2 flex-wrap">
+              <button onclick="saveJobEdits(${job.id}, false)" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold cursor-pointer">
+                💾 Save Draft
+              </button>
+              <button onclick="copyCaption(${job.id})" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold cursor-pointer">
+                📋 Copy Caption
+              </button>
+              ${imgSrc ? `<a href="${escapeHtml(job.card_image_path)}" download="job_${job.id}.png" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold cursor-pointer">⬇️ Download Card</a>` : ''}
+              ${isPending ? `
+              <button onclick="rejectJob(${job.id})" class="px-3.5 py-2 rounded-lg bg-rose-950/70 hover:bg-rose-900 border border-rose-800 text-rose-200 text-xs font-semibold cursor-pointer">
+                ✖ Reject
+              </button>` : `
+              <button onclick="deleteJob(${job.id})" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-rose-900 text-slate-300 text-xs font-semibold cursor-pointer">
+                🗑 Delete
+              </button>`}
+            </div>
+
+            ${isPending ? `
+            <div class="flex items-center gap-2 flex-wrap">
+              <button onclick="markPublishedManual(${job.id})" class="px-3.5 py-2 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer" title="Use after copying caption & uploading manually to FB">
+                ✅ Mark Published (Manual)
+              </button>
+              <button onclick="approveAndPublish(${job.id})" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold shadow-lg shadow-emerald-900/40 cursor-pointer">
+                🚀 Approve & Publish to Facebook
+              </button>
+            </div>` : ''}
+          </div>
+        </div>
+      </div>`;
+    }
+
+    async function scrapeJobs() {
+      const btn = document.getElementById('scrapeBtn');
+      const sp = document.getElementById('scrapeSpinner');
+      btn.disabled = true;
+      sp.classList.remove('hidden');
+      try {
+        const res = await fetch('/api/scrape', { method: 'POST' });
+        const data = await res.json();
+        showToast(`Fetched! Added ${data.added} new jobs (${data.skipped} already existed).` + (data.errors.length ? ` Errors: ${data.errors.join(', ')}` : ''));
+        await loadJobs();
+      } catch (e) {
+        showToast('Scrape failed: ' + e.message, true);
+      } finally {
+        btn.disabled = false;
+        sp.classList.add('hidden');
+      }
+    }
+
+    async function saveJobEdits(id, regenerateCard) {
+      const payload = {
+        sinhala_post: document.getElementById(`post-${id}`).value,
+        card_headline_si: document.getElementById(`headline-${id}`).value,
+        company: document.getElementById(`company-${id}`).value,
+        closing_date: document.getElementById(`closing-${id}`).value,
+        regenerate_card: regenerateCard,
+      };
+      const res = await fetch(`/api/jobs/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        showToast(regenerateCard ? 'Saved & Job Card regenerated!' : 'Draft saved!');
+        await loadJobs();
+      } else {
+        showToast('Failed to save changes.', true);
+      }
+    }
+
+    async function reformatJob(id) {
+      const res = await fetch(`/api/jobs/${id}/reformat`, { method: 'POST' });
+      if (res.ok) {
+        showToast('Re-formatted in Sinhala!');
+        await loadJobs();
+      } else {
+        showToast('Failed to re-format.', true);
+      }
+    }
+
+    async function approveAndPublish(id) {
+      await saveJobEdits(id, false);
+      const res = await fetch(`/api/jobs/${id}/approve-publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ include_image: true }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('🚀 Published to Facebook Page!');
+        await loadJobs();
+      } else {
+        showToast(data.detail || 'Publish failed', true);
+        await loadJobs();
+      }
+    }
+
+    async function copyCaption(id) {
+      const text = document.getElementById(`post-${id}`).value;
+      await navigator.clipboard.writeText(text);
+      showToast('📋 Sinhala caption copied to clipboard!');
+    }
+
+    async function markPublishedManual(id) {
+      await saveJobEdits(id, false);
+      const res = await fetch(`/api/jobs/${id}/mark-published`, { method: 'POST' });
+      if (res.ok) {
+        showToast('✅ Marked as Published!');
+        await loadJobs();
+      }
+    }
+
+    async function rejectJob(id) {
+      await fetch(`/api/jobs/${id}/reject`, { method: 'POST' });
+      showToast('Moved to Rejected.');
+      await loadJobs();
+    }
+
+    async function deleteJob(id) {
+      await fetch(`/api/jobs/${id}`, { method: 'DELETE' });
+      showToast('Deleted.');
+      await loadJobs();
+    }
+
+    async function submitManualImport() {
+      const payload = {
+        url: document.getElementById('mUrl').value,
+        title: document.getElementById('mTitle').value,
+        company: document.getElementById('mCompany').value,
+        closing_date: document.getElementById('mClosing').value,
+        category: document.getElementById('mCategory').value,
+        raw_text: document.getElementById('mText').value,
+      };
+      const res = await fetch('/api/jobs/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        closeModal('manualModal');
+        ['mUrl', 'mTitle', 'mCompany', 'mClosing', 'mText'].forEach(id => document.getElementById(id).value = '');
+        showToast('Job formatted and added to Pending Review!');
+        await switchTab('pending');
+      } else {
+        showToast(data.detail || 'Import failed', true);
+      }
+    }
+
+    async function loadSettingsStatus() {
+      const res = await fetch('/api/settings');
+      const s = await res.json();
+      const pill = document.getElementById('fbStatusPill');
+      if (s.fb_page_id && s.has_fb_token) {
+        pill.textContent = `✅ FB Page Connected (${s.fb_page_id})`;
+        pill.className = 'text-xs px-3 py-1.5 rounded-full border border-emerald-700 bg-emerald-950/60 text-emerald-300';
+      } else {
+        pill.textContent = '⚠️ FB Token Not Set (Configure in Settings)';
+        pill.className = 'text-xs px-3 py-1.5 rounded-full border border-amber-700 bg-amber-950/50 text-amber-300';
+      }
+      document.getElementById('sBrand').value = s.page_brand_name || '';
+      document.getElementById('sPageId').value = s.fb_page_id || '';
+    }
+
+    async function openSettings() {
+      await loadSettingsStatus();
+      await loadSources();
+      openModal('settingsModal');
+    }
+
+    async function saveSettingsForm() {
+      const payload = {
+        page_brand_name: document.getElementById('sBrand').value,
+        fb_page_id: document.getElementById('sPageId').value,
+        fb_page_access_token: document.getElementById('sFbToken').value,
+        gemini_api_key: document.getElementById('sGemini').value,
+      };
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        document.getElementById('sFbToken').value = '';
+        document.getElementById('sGemini').value = '';
+        await loadSettingsStatus();
+        showToast('Settings saved!');
+      }
+    }
+
+    async function testFb() {
+      const res = await fetch('/api/settings/test-fb', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) {
+        showToast(`✅ Connected to Facebook Page: ${data.page.name} (ID: ${data.page.id})`);
+      } else {
+        showToast(`❌ FB Connection failed: ${data.error}`, true);
+      }
+    }
+
+    async function loadSources() {
+      const res = await fetch('/api/sources');
+      const data = await res.json();
+      const el = document.getElementById('sourcesList');
+      el.innerHTML = data.sources.map(src => `
+        <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-sm">
+          <div>
+            <span class="font-semibold">${escapeHtml(src.name)}</span>
+            <span class="text-xs text-slate-400 ml-2">${escapeHtml(src.url)}</span>
+          </div>
+          <label class="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" ${src.enabled ? 'checked' : ''} onchange="toggleSource(${src.id}, this.checked)" />
+            <span>Enabled</span>
+          </label>
+        </div>
+      `).join('');
+    }
+
+    async function toggleSource(id, enabled) {
+      await fetch(`/api/sources/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+    }
+
+    async function addSource() {
+      const name = document.getElementById('newSrcName').value.trim();
+      const url = document.getElementById('newSrcUrl').value.trim();
+      if (!name || !url) return;
+      const res = await fetch('/api/sources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, url }),
+      });
+      if (res.ok) {
+        document.getElementById('newSrcName').value = '';
+        document.getElementById('newSrcUrl').value = '';
+        await loadSources();
+        showToast('Source added!');
+      } else {
+        showToast('Could not add source.', true);
+      }
+    }
+
+    // Initial load
+    loadSettingsStatus();
+    loadJobs();
+  </script>
+</body>
+</html>
