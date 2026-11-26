@@ -71,12 +71,13 @@ async def publish_to_facebook(
     message: str,
     link: str = "",
     card_image_url_path: str = "",
+    link_in_first_comment: bool = True,
 ) -> Dict:
     if not page_id or not access_token:
         return {"ok": False, "error": "Facebook Page ID or Access Token is not configured in Settings."}
 
     full_message = message.strip()
-    if link and link not in full_message:
+    if link and not link_in_first_comment and link not in full_message:
         full_message = f"{full_message}\n\n🔗 {link}"
 
     # Check if local PNG exists
@@ -121,7 +122,59 @@ async def publish_to_facebook(
             return {"ok": False, "error": err}
 
         post_id = res_data.get("post_id") or res_data.get("id") or ""
+
+        # Auto-post the external link as the First Comment to preserve organic reach
+        if post_id and link and link_in_first_comment:
+            try:
+                comment_msg = f"🔗 සම්පූර්ණ විස්තර සහ අයදුම් කිරීමට පිවිසෙන්න:\n{link}"
+                await client.post(
+                    f"{GRAPH_API_BASE}/{post_id}/comments",
+                    data={"message": comment_msg, "access_token": access_token},
+                )
+            except Exception:
+                pass
+
         return {"ok": True, "post_id": post_id}
+
+
+async def publish_via_webhook(
+    webhook_url: str,
+    message: str,
+    link: str = "",
+    card_image_url_path: str = "",
+    title: str = "",
+) -> Dict:
+    if not webhook_url:
+        return {"ok": False, "error": "Webhook URL is not configured."}
+
+    first_comment = f"🔗 සම්පූර්ණ විස්තර සහ අයදුම් කිරීමට පිවිසෙන්න:\n{link}" if link else ""
+    data = {
+        "title": title,
+        "message": message.strip(),
+        "first_comment": first_comment,
+        "link": link,
+    }
+
+    local_img: Optional[Path] = None
+    if card_image_url_path and card_image_url_path.startswith("/cards/"):
+        candidate = CARDS_DIR / Path(card_image_url_path).name
+        if candidate.exists():
+            local_img = candidate
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if local_img:
+                with local_img.open("rb") as f:
+                    files = {"photo": (local_img.name, f, "image/png")}
+                    resp = await client.post(webhook_url, data=data, files=files)
+            else:
+                resp = await client.post(webhook_url, data=data)
+
+        if resp.status_code >= 400:
+            return {"ok": False, "error": f"Webhook returned HTTP {resp.status_code}: {resp.text[:200]}"}
+        return {"ok": True, "post_id": f"webhook:{resp.status_code}"}
+    except Exception as e:
+        return {"ok": False, "error": f"Webhook error: {e}"}
 
 
 async def fetch_page_analytics(page_id: str, access_token: str, limit: int = 15) -> Dict:

@@ -57,6 +57,8 @@ def extract_closing_date(text: str) -> str:
         match = re.search(pattern, text, flags=re.IGNORECASE)
         if match:
             val = re.sub(r"\s+", " ", match.group(1)).strip(" .,-:")
+            # Strip trailing boilerplate words
+            val = re.sub(r"\b(Source|Gazette|Apply|Click|View|Details|Here).*$", "", val, flags=re.IGNORECASE).strip(" .,-:")
             # Keep it concise
             if len(val) > 32:
                 val = val[:32].rsplit(" ", 1)[0]

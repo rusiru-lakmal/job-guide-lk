@@ -25,6 +25,15 @@ NOISE_PATTERNS = (
 )
 
 
+ENGAGEMENT_HOOKS = {
+    "Government": "💬 ඔබත් රජයේ රැකියාවක් බලාපොරොත්තුවෙන් ඉන්නවා නම් 'YES' කියලා Comment කරන්න 👇",
+    "Banking & Finance": "💬 බැංකු / මූල්‍ය ක්ෂේත්‍රයේ රැකියාවක් හොයන යාළුවෙක්ව Mention කරන්න 👇",
+    "IT & Engineering": "💬 ඔබේ ක්ෂේත්‍රය (IT / Engineering) මොකක්ද කියලා Comment කරන්න 👇",
+    "Private": "💬 ඔබේ දිස්ත්‍රික්කය Comment කරන්න – ළඟම රැකියා අවස්ථා අපි දාන්නම් 👇",
+    "General": "💬 ඔබේ දිස්ත්‍රික්කය Comment කරන්න & රැකියාවක් හොයන යාළුවෙක්ට Share කරන්න 👇",
+}
+
+
 def category_to_sinhala(category: str) -> str:
     return CATEGORY_SI_MAP.get(category, "නව රැකියා ඇබෑර්තු")
 
@@ -71,6 +80,7 @@ def _build_template_sinhala(job: Dict) -> Dict[str, str]:
     )
 
     salary_line = f"💰 වැටුප (Salary): {salary} 🔥" if salary else "💰 වැටුප (Salary): ආකර්ෂණීය වැටුප් පැකේජයක්"
+    engagement_hook = ENGAGEMENT_HOOKS.get(job.get("category", "General"), ENGAGEMENT_HOOKS["General"])
 
     post_lines = [
         f"🚨 නව රැකියා අවස්ථාවක්! | {cat_si} 🇱🇰",
@@ -86,12 +96,11 @@ def _build_template_sinhala(job: Dict) -> Dict[str, str]:
         summary_block,
         "",
         "━━━━━━━━━━━━━━━━━━━━",
-        "📲 සම්පූර්ණ විස්තර සහ අයදුම් කරන ආකාරය:",
-        f"👇 පහත ලින්ක් එකට පිවිසෙන්න:",
-        f"🔗 {source_url}" if source_url else "",
+        "📲 සම්පූර්ණ විස්තර සහ අයදුම් කිරීමේ Link එක:",
+        "👇 පළමු Comment එකේ (First Comment) දාලා තියෙනවා!",
         "━━━━━━━━━━━━━━━━━━━━",
         "",
-        "💬 රැකියාවක් හොයන ඔබේ යාළුවන්ටත් Share කරන්න! 👍",
+        engagement_hook,
         "🔔 දිනපතා අලුත් රැකියා පුවත් සඳහා අපේ Page එක Follow කරන්න.",
         "",
         "#SLJobGuide #SriLankaJobs #රැකියා #JobsInSriLanka #JobVacanciesSL",

@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from typing import Optional
 from fastapi import FastAPI, HTTPException
@@ -5,23 +6,27 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from app.card_generator import generate_job_card
-from app.config import BASE_DIR, CARDS_DIR, get_settings, save_settings
+from app.card_generator import generate_digest_card, generate_job_card
+from app.config import BASE_DIR, CARDS_DIR, VIDEOS_DIR, get_settings, save_settings
 from app.database import get_conn, init_db, utc_now_iso
-from app.facebook import fetch_page_analytics, publish_to_facebook, verify_page_token
+from app.facebook import fetch_page_analytics, publish_to_facebook, publish_via_webhook, verify_page_token
 from app.formatter import format_job_sinhala
+from app.scheduler import autopilot_loop, run_autopilot_cycle
 from app.scraper import classify_category, extract_closing_date, extract_salary, fetch_single_url_job, fetch_topjobs_lk, fetch_wp_json_jobs
+from app.video_generator import generate_job_video
 
 app = FastAPI(title="Sri Lanka Job News FB Studio")
 STATIC_DIR = BASE_DIR / "static"
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
 app.mount("/cards", StaticFiles(directory=str(CARDS_DIR)), name="cards")
+app.mount("/videos", StaticFiles(directory=str(VIDEOS_DIR)), name="videos")
 
 
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
     init_db()
+    asyncio.create_task(autopilot_loop(scrape_sources))
 
 
 @app.get("/")
@@ -64,12 +69,22 @@ class SourceToggle(BaseModel):
 class SettingsUpdate(BaseModel):
     fb_page_id: Optional[str] = None
     fb_page_access_token: Optional[str] = None
+    webhook_url: Optional[str] = None
     gemini_api_key: Optional[str] = None
     page_brand_name: Optional[str] = None
+    auto_fetch_enabled: Optional[bool] = None
+    auto_fetch_interval_hours: Optional[int] = None
+    auto_publish_enabled: Optional[bool] = None
+    auto_publish_max_per_run: Optional[int] = None
 
 
 class ApproveRequest(BaseModel):
     include_image: bool = True
+
+
+class VideoRequest(BaseModel):
+    voice: str = "female"
+    format: str = "reel"
 
 
 def _row_to_dict(row) -> dict:
@@ -266,6 +281,47 @@ def update_job(job_id: int, body: JobUpdate):
     return {"job": _row_to_dict(updated)}
 
 
+@app.post("/api/digest")
+def create_daily_digest():
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM jobs WHERE status != 'rejected' ORDER BY id DESC LIMIT 5"
+        ).fetchall()
+    jobs = [_row_to_dict(r) for r in rows]
+    if not jobs:
+        raise HTTPException(status_code=400, detail="No jobs available to build a digest.")
+
+    card_url = generate_digest_card(jobs)
+    lines = [
+        "🔥 අද දවසේ හොඳම රැකියා අවස්ථා 5 (Daily Job Digest) 🇱🇰",
+        "",
+    ]
+    comment_lines = ["🔗 අද දවසේ රැකියා සඳහා සෘජු Apply Links:"]
+    for idx, j in enumerate(jobs, start=1):
+        role = j.get("card_headline_si") or j.get("title_en")
+        company = j.get("company") or "Sri Lanka"
+        closing = j.get("closing_date") or ""
+        lines.append(f"{idx}️⃣ {role} — 🏢 {company}" + (f" (⏳ {closing})" if closing else ""))
+        if j.get("source_url") and not j["source_url"].startswith("manual://"):
+            comment_lines.append(f"{idx}. {role}: {j['source_url']}")
+
+    lines.extend([
+        "",
+        "━━━━━━━━━━━━━━━━━━━━",
+        "📲 සියලුම Apply Links පළමු Comment එකේ දාලා තියෙනවා! 👇",
+        "━━━━━━━━━━━━━━━━━━━━",
+        "",
+        "💬 මේ අතරින් ඔබට ගැළපෙන රැකියාව කී වෙනි එකද? Comment කරන්න!",
+        "🔖 පස්සේ බලන්න Save කරගන්න & යාළුවන්ටත් Share කරන්න.",
+        "#SLJobGuide #SriLankaJobs #රැකියා #DailyJobsSL",
+    ])
+    return {
+        "caption": "\n".join(lines),
+        "first_comment": "\n".join(comment_lines),
+        "card_url": card_url,
+    }
+
+
 @app.post("/api/jobs/reformat-all")
 def reformat_all_pending():
     with get_conn() as conn:
@@ -327,6 +383,21 @@ def reformat_job(job_id: int):
     return {"job": _row_to_dict(updated)}
 
 
+@app.post("/api/jobs/{job_id}/generate-video")
+async def create_job_video(job_id: int, req: VideoRequest = VideoRequest()):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Job not found")
+        job = _row_to_dict(row)
+
+    video_url = await generate_job_video(job_id, job, voice=req.voice, video_format=req.format)
+    with get_conn() as conn:
+        conn.execute("UPDATE jobs SET video_path = ? WHERE id = ?", (video_url, job_id))
+        updated = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+    return {"job": _row_to_dict(updated)}
+
+
 @app.post("/api/jobs/{job_id}/approve-publish")
 async def approve_and_publish(job_id: int, req: ApproveRequest = ApproveRequest()):
     with get_conn() as conn:
@@ -339,13 +410,22 @@ async def approve_and_publish(job_id: int, req: ApproveRequest = ApproveRequest(
     link = "" if job["source_url"].startswith("manual://") else job["source_url"]
     img_path = job["card_image_path"] if req.include_image else ""
 
-    res = await publish_to_facebook(
-        page_id=settings["fb_page_id"],
-        access_token=settings["fb_page_access_token"],
-        message=job["sinhala_post"],
-        link=link,
-        card_image_url_path=img_path,
-    )
+    if settings.get("webhook_url"):
+        res = await publish_via_webhook(
+            webhook_url=settings["webhook_url"],
+            message=job["sinhala_post"],
+            link=link,
+            card_image_url_path=img_path,
+            title=job["title_en"],
+        )
+    else:
+        res = await publish_to_facebook(
+            page_id=settings["fb_page_id"],
+            access_token=settings["fb_page_access_token"],
+            message=job["sinhala_post"],
+            link=link,
+            card_image_url_path=img_path,
+        )
 
     if not res["ok"]:
         with get_conn() as conn:
@@ -432,9 +512,15 @@ def read_settings():
     return {
         "fb_page_id": s["fb_page_id"],
         "fb_page_access_token_masked": (s["fb_page_access_token"][:8] + "..." + s["fb_page_access_token"][-4:]) if len(s["fb_page_access_token"]) > 14 else ("configured" if s["fb_page_access_token"] else ""),
+        "webhook_url": s["webhook_url"],
         "has_fb_token": bool(s["fb_page_access_token"]),
+        "has_webhook": bool(s["webhook_url"]),
         "has_gemini_key": bool(s["gemini_api_key"]),
         "page_brand_name": s["page_brand_name"],
+        "auto_fetch_enabled": s["auto_fetch_enabled"],
+        "auto_fetch_interval_hours": s["auto_fetch_interval_hours"],
+        "auto_publish_enabled": s["auto_publish_enabled"],
+        "auto_publish_max_per_run": s["auto_publish_max_per_run"],
     }
 
 
@@ -445,12 +531,40 @@ def write_settings(body: SettingsUpdate):
         updates["fb_page_id"] = body.fb_page_id
     if body.fb_page_access_token is not None and body.fb_page_access_token.strip() != "":
         updates["fb_page_access_token"] = body.fb_page_access_token
+    if body.webhook_url is not None:
+        updates["webhook_url"] = body.webhook_url
     if body.gemini_api_key is not None and body.gemini_api_key.strip() != "":
         updates["gemini_api_key"] = body.gemini_api_key
     if body.page_brand_name is not None:
         updates["page_brand_name"] = body.page_brand_name
+    if body.auto_fetch_enabled is not None:
+        updates["auto_fetch_enabled"] = body.auto_fetch_enabled
+    if body.auto_fetch_interval_hours is not None:
+        updates["auto_fetch_interval_hours"] = body.auto_fetch_interval_hours
+    if body.auto_publish_enabled is not None:
+        updates["auto_publish_enabled"] = body.auto_publish_enabled
+    if body.auto_publish_max_per_run is not None:
+        updates["auto_publish_max_per_run"] = body.auto_publish_max_per_run
     save_settings(updates)
     return read_settings()
+
+
+@app.post("/api/settings/test-webhook")
+async def test_webhook():
+    s = get_settings()
+    if not s.get("webhook_url"):
+        return {"ok": False, "error": "Please enter and save a Webhook URL first."}
+    return await publish_via_webhook(
+        webhook_url=s["webhook_url"],
+        message="🚨 Test Post from SL රැකියා මග - Job Guide LK!",
+        link="https://rusiru-lakmal.github.io/job-guide-lk/",
+        title="Test Job Vacancy",
+    )
+
+
+@app.post("/api/autopilot/run")
+async def trigger_autopilot():
+    return await run_autopilot_cycle(scrape_sources)
 
 
 @app.post("/api/settings/test-fb")

@@ -243,7 +243,7 @@ def generate_job_card(job_id: int, job: Dict) -> str:
   </div>
 
   <div class="footer">
-    <div class="footer-cta">👇 සම්පූර්ණ විස්තර සහ අයදුම් කිරීමට Caption එකේ Link එක බලන්න</div>
+    <div class="footer-cta">👇 අයදුම් කිරීමේ Link එක පළමු Comment එකේ බලන්න!</div>
     <div class="footer-sub">දිනපතා නවතම රැකියා ඇබෑර්තු සඳහා අපේ Facebook Page එක Follow කරන්න 🔔</div>
   </div>
 </body>
@@ -270,4 +270,133 @@ def generate_job_card(job_id: int, job: Dict) -> str:
         html_path.unlink(missing_ok=True)
         return f"/cards/job_{job_id}.png"
 
+    return ""
+
+
+def generate_digest_card(jobs: list) -> str:
+    settings = get_settings()
+    chrome_path = settings.get("chrome_path", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+    brand_name = html.escape(settings.get("page_brand_name", "SL රැකියා මග - Job Guide LK"))
+
+    rows_html = ""
+    for idx, j in enumerate(jobs[:5], start=1):
+        title = html.escape((j.get("card_headline_si") or j.get("title_en") or "")[:58])
+        company = html.escape((j.get("company") or "Sri Lanka")[:42])
+        closing = html.escape((j.get("closing_date") or "")[:20])
+        rows_html += f"""
+        <div class="row">
+          <div class="num">{idx}</div>
+          <div class="info">
+            <div class="r-title">{title}</div>
+            <div class="r-meta">🏢 {company}{f' &nbsp;•&nbsp; ⏳ {closing}' if closing else ''}</div>
+          </div>
+        </div>"""
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="si">
+<head>
+<meta charset="UTF-8" />
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{
+    width: 1080px;
+    height: 1080px;
+    font-family: 'Sinhala Sangam MN', 'Sinhala MN', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: linear-gradient(155deg, #020617 0%, #064e3b 55%, #0f766e 100%);
+    color: #ffffff;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 52px;
+  }}
+  .header {{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }}
+  .tag {{
+    background: #fbbf24;
+    color: #0f172a;
+    font-size: 26px;
+    font-weight: 800;
+    padding: 10px 28px;
+    border-radius: 999px;
+  }}
+  .brand {{
+    font-size: 24px;
+    font-weight: 700;
+    color: #fde68a;
+  }}
+  .hero-title {{
+    font-size: 52px;
+    font-weight: 900;
+    line-height: 1.2;
+    margin-top: 16px;
+  }}
+  .list {{
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 18px 0;
+  }}
+  .row {{
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: rgba(255,255,255,0.09);
+    border: 1.5px solid rgba(255,255,255,0.2);
+    border-radius: 22px;
+    padding: 18px 24px;
+  }}
+  .num {{
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    background: #fbbf24;
+    color: #0f172a;
+    font-size: 28px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }}
+  .r-title {{ font-size: 27px; font-weight: 800; color: #ffffff; }}
+  .r-meta {{ font-size: 20px; color: #cbd5e1; margin-top: 4px; }}
+  .footer {{
+    background: rgba(0,0,0,0.35);
+    border-radius: 22px;
+    padding: 20px 30px;
+    text-align: center;
+    font-size: 25px;
+    font-weight: 700;
+    color: #fbbf24;
+  }}
+</style>
+</head>
+<body>
+  <div>
+    <div class="header">
+      <div class="tag">🔥 TODAY'S TOP 5 JOBS</div>
+      <div class="brand">🇱🇰 {brand_name}</div>
+    </div>
+    <div class="hero-title">අද දවසේ හොඳම රැකියා අවස්ථා 5</div>
+  </div>
+  <div class="list">{rows_html}</div>
+  <div class="footer">👇 සියලුම Apply Links පළමු Comment එකේ දාලා තියෙනවා! Share & Follow 🔔</div>
+</body>
+</html>"""
+
+    html_path = CARDS_DIR / "digest_latest.html"
+    png_path = CARDS_DIR / "digest_latest.png"
+    html_path.write_text(html_content, encoding="utf-8")
+    if Path(chrome_path).exists():
+        cmd = [
+            chrome_path, "--headless=new", "--disable-gpu", "--no-sandbox",
+            "--user-data-dir=/tmp/chrome-headless-profile", "--hide-scrollbars",
+            "--window-size=1080,1080", f"--screenshot={png_path}", html_path.as_uri(),
+        ]
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+        html_path.unlink(missing_ok=True)
+        return "/cards/digest_latest.png"
     return ""

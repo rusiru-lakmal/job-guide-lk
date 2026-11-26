@@ -49,6 +49,7 @@ def init_db():
                 card_headline_si TEXT NOT NULL DEFAULT '',
                 card_subline_si TEXT NOT NULL DEFAULT '',
                 card_image_path TEXT NOT NULL DEFAULT '',
+                video_path TEXT NOT NULL DEFAULT '',
                 status TEXT NOT NULL DEFAULT 'pending',
                 fb_post_id TEXT NOT NULL DEFAULT '',
                 error_message TEXT NOT NULL DEFAULT '',
@@ -58,10 +59,12 @@ def init_db():
             """
         )
 
-        # Safe migration for existing databases missing the salary column
+        # Safe migration for existing databases missing newer columns
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(jobs)").fetchall()]
         if "salary" not in cols:
             conn.execute("ALTER TABLE jobs ADD COLUMN salary TEXT NOT NULL DEFAULT ''")
+        if "video_path" not in cols:
+            conn.execute("ALTER TABLE jobs ADD COLUMN video_path TEXT NOT NULL DEFAULT ''")
 
         # Seed default sources requested by the user
         default_sources = [

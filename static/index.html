@@ -27,6 +27,9 @@
         <button id="reformatAllBtn" onclick="reformatAllPending()" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold transition cursor-pointer">
           ✨ Re-format All
         </button>
+        <button onclick="openDailyDigest()" class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold transition cursor-pointer">
+          🔥 Top 5 Digest
+        </button>
         <button onclick="openModal('manualModal')" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition cursor-pointer">
           ➕ Import Link / FB Post
         </button>
@@ -124,6 +127,17 @@
     </div>
   </div>
 
+  <!-- Daily Digest Modal -->
+  <div id="digestModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 hidden items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-3xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold">🔥 Top 5 Daily Job Digest (High-Reach Roundup)</h2>
+        <button onclick="closeModal('digestModal')" class="text-slate-400 hover:text-white text-xl cursor-pointer">&times;</button>
+      </div>
+      <div id="digestBody" class="space-y-4 text-sm text-slate-300">⏳ Generating Top 5 Digest...</div>
+    </div>
+  </div>
+
   <!-- Settings Modal -->
   <div id="settingsModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 hidden items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto">
@@ -150,13 +164,45 @@
           <input id="sFbToken" type="password" placeholder="EAA..." class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm" />
         </div>
         <div>
+          <label class="block text-xs text-slate-400 mb-1">Make.com / Zapier Webhook URL (Recommended for 100% Public Auto-Posts)</label>
+          <input id="sWebhook" type="url" placeholder="https://hook.eu2.make.com/..." class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm" />
+        </div>
+        <div>
           <label class="block text-xs text-slate-400 mb-1">Gemini API Key (Optional - for AI Sinhala translation, leave blank to keep existing)</label>
           <input id="sGemini" type="password" placeholder="AIza..." class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm" />
         </div>
-        <div class="flex items-center gap-2 pt-1">
+        <div class="flex items-center gap-2 flex-wrap pt-1">
           <button onclick="saveSettingsForm()" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold cursor-pointer">Save Settings</button>
           <button onclick="testFb()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm cursor-pointer">🔌 Test FB Connection</button>
+          <button onclick="testWebhook()" class="px-4 py-2 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold cursor-pointer">🪝 Test Webhook</button>
         </div>
+      </div>
+
+      <!-- Auto-Pilot Scheduler -->
+      <div class="space-y-3 border-b border-slate-800 pb-5">
+        <h3 class="text-sm font-semibold text-amber-400">🤖 Auto-Pilot Automation</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <label class="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 cursor-pointer">
+            <input id="sAutoFetch" type="checkbox" />
+            <span>Auto-Fetch Jobs (Gazette, HelloJobs, TopJobs)</span>
+          </label>
+          <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2">
+            <span class="text-slate-400">Every</span>
+            <input id="sAutoInterval" type="number" min="1" max="24" class="w-16 px-2 py-1 rounded bg-slate-900 border border-slate-700 text-center" />
+            <span class="text-slate-400">hours</span>
+          </div>
+          <label class="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 cursor-pointer">
+            <input id="sAutoPublish" type="checkbox" />
+            <span>Auto-Publish to FB (Skip Approval)</span>
+          </label>
+          <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2">
+            <span class="text-slate-400">Max posts/run:</span>
+            <input id="sAutoMax" type="number" min="1" max="10" class="w-16 px-2 py-1 rounded bg-slate-900 border border-slate-700 text-center" />
+          </div>
+        </div>
+        <button onclick="runAutopilotNow()" class="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold cursor-pointer">
+          ▶ Run Auto-Pilot Now
+        </button>
       </div>
 
       <!-- Sources -->
@@ -375,7 +421,7 @@
 
       return `
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 grid grid-cols-1 lg:grid-cols-12 gap-6 shadow-lg">
-        <!-- Left: Card Preview -->
+        <!-- Left: Card & Video Preview -->
         <div class="lg:col-span-4 flex flex-col gap-3">
           <div class="aspect-square w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
             ${imgSrc ? `<img id="img-${job.id}" src="${imgSrc}" class="w-full h-full object-cover" />` : `<span class="text-slate-500 text-sm">No Card Image</span>`}
@@ -387,6 +433,32 @@
             <button onclick="reformatJob(${job.id})" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold cursor-pointer" title="Re-run Sinhala formatter">
               ✨ Re-format
             </button>
+          </div>
+
+          <!-- Video + Voiceover Generator -->
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 space-y-2.5">
+            <div class="flex items-center justify-between text-xs font-semibold text-slate-300">
+              <span>🎬 Reels / Video + Sinhala Voice</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <select id="voice-${job.id}" class="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs">
+                <option value="female">👩 Female (Thilini)</option>
+                <option value="male">👨 Male (Sameera)</option>
+              </select>
+              <select id="vfmt-${job.id}" class="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs">
+                <option value="reel">📱 Reel (9:16)</option>
+                <option value="square">⬜ Square (1:1)</option>
+              </select>
+            </div>
+            <button id="vbtn-${job.id}" onclick="generateVideo(${job.id})" class="w-full px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold cursor-pointer transition">
+              🎙️ Generate Video + Voiceover
+            </button>
+            ${job.video_path ? `
+              <video controls class="w-full rounded-lg border border-slate-800 max-h-64 bg-black" src="${escapeHtml(job.video_path)}?t=${Date.now()}"></video>
+              <a href="${escapeHtml(job.video_path)}" download="job_${job.id}.mp4" class="block text-center w-full px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold">
+                ⬇️ Download Video (MP4)
+              </a>
+            ` : ''}
           </div>
         </div>
 
@@ -440,6 +512,10 @@
               <button onclick="copyCaption(${job.id})" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold cursor-pointer">
                 📋 Copy Caption
               </button>
+              ${job.source_url && !job.source_url.startsWith('manual://') ? `
+              <button onclick="copyFirstComment('${escapeHtml(job.source_url)}')" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-semibold cursor-pointer" title="Paste in First Comment to boost FB reach!">
+                💬 Copy First Comment (Link)
+              </button>` : ''}
               ${imgSrc ? `<a href="${escapeHtml(job.card_image_path)}" download="job_${job.id}.png" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold cursor-pointer">⬇️ Download Card</a>` : ''}
               ${isPending ? `
               <button onclick="rejectJob(${job.id})" class="px-3.5 py-2 rounded-lg bg-rose-950/70 hover:bg-rose-900 border border-rose-800 text-rose-200 text-xs font-semibold cursor-pointer">
@@ -504,6 +580,33 @@
       }
     }
 
+    async function generateVideo(id) {
+      const btn = document.getElementById(`vbtn-${id}`);
+      const voice = document.getElementById(`voice-${id}`).value;
+      const format = document.getElementById(`vfmt-${id}`).value;
+      btn.disabled = true;
+      btn.textContent = '⏳ Creating Video & Voiceover...';
+      try {
+        const res = await fetch(`/api/jobs/${id}/generate-video`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ voice, format }),
+        });
+        if (res.ok) {
+          showToast('🎬 Video + Sinhala Voiceover ready!');
+          await loadJobs();
+        } else {
+          const err = await res.json();
+          showToast(err.detail || 'Video generation failed', true);
+        }
+      } catch (e) {
+        showToast('Video generation failed: ' + e.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🎙️ Generate Video + Voiceover';
+      }
+    }
+
     async function reformatJob(id) {
       const res = await fetch(`/api/jobs/${id}/reformat`, { method: 'POST' });
       if (res.ok) {
@@ -550,6 +653,43 @@
       const text = document.getElementById(`post-${id}`).value;
       await navigator.clipboard.writeText(text);
       showToast('📋 Sinhala caption copied to clipboard!');
+    }
+
+    async function copyFirstComment(url) {
+      const text = `🔗 සම්පූර්ණ විස්තර සහ අයදුම් කිරීමට පිවිසෙන්න:\n${url}`;
+      await navigator.clipboard.writeText(text);
+      showToast('💬 First Comment (Apply Link) copied!');
+    }
+
+    async function openDailyDigest() {
+      openModal('digestModal');
+      const body = document.getElementById('digestBody');
+      body.innerHTML = '<div class="py-8 text-center text-slate-400">⏳ Generating Top 5 Digest Card & Caption...</div>';
+      const res = await fetch('/api/digest', { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) {
+        body.innerHTML = `<div class="text-rose-300">${escapeHtml(d.detail || 'Failed')}</div>`;
+        return;
+      }
+      body.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <img src="${escapeHtml(d.card_url)}?t=${Date.now()}" class="w-full rounded-xl border border-slate-800" />
+            <a href="${escapeHtml(d.card_url)}" download="top5_digest.png" class="block text-center px-3 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold">⬇️ Download Top 5 Card</a>
+          </div>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">Post Caption (No external link = higher reach)</label>
+              <textarea id="digestCaption" rows="9" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs">${escapeHtml(d.caption)}</textarea>
+              <button onclick="navigator.clipboard.writeText(document.getElementById('digestCaption').value); showToast('📋 Digest Caption copied!')" class="mt-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold cursor-pointer">📋 Copy Caption</button>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 mb-1">First Comment (All 5 Apply Links)</label>
+              <textarea id="digestComment" rows="5" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs">${escapeHtml(d.first_comment)}</textarea>
+              <button onclick="navigator.clipboard.writeText(document.getElementById('digestComment').value); showToast('💬 Digest First Comment copied!')" class="mt-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold cursor-pointer">💬 Copy First Comment</button>
+            </div>
+          </div>
+        </div>`;
     }
 
     async function markPublishedManual(id) {
@@ -611,6 +751,11 @@
       }
       document.getElementById('sBrand').value = s.page_brand_name || '';
       document.getElementById('sPageId').value = s.fb_page_id || '';
+      document.getElementById('sWebhook').value = s.webhook_url || '';
+      document.getElementById('sAutoFetch').checked = !!s.auto_fetch_enabled;
+      document.getElementById('sAutoInterval').value = s.auto_fetch_interval_hours || 4;
+      document.getElementById('sAutoPublish').checked = !!s.auto_publish_enabled;
+      document.getElementById('sAutoMax').value = s.auto_publish_max_per_run || 2;
     }
 
     async function openSettings() {
@@ -624,7 +769,12 @@
         page_brand_name: document.getElementById('sBrand').value,
         fb_page_id: document.getElementById('sPageId').value,
         fb_page_access_token: document.getElementById('sFbToken').value,
+        webhook_url: document.getElementById('sWebhook').value,
         gemini_api_key: document.getElementById('sGemini').value,
+        auto_fetch_enabled: document.getElementById('sAutoFetch').checked,
+        auto_fetch_interval_hours: parseInt(document.getElementById('sAutoInterval').value || '4', 10),
+        auto_publish_enabled: document.getElementById('sAutoPublish').checked,
+        auto_publish_max_per_run: parseInt(document.getElementById('sAutoMax').value || '2', 10),
       };
       const res = await fetch('/api/settings', {
         method: 'POST',
@@ -636,6 +786,24 @@
         document.getElementById('sGemini').value = '';
         await loadSettingsStatus();
         showToast('Settings saved!');
+      }
+    }
+
+    async function runAutopilotNow() {
+      showToast('🤖 Running Auto-Pilot cycle...');
+      const res = await fetch('/api/autopilot/run', { method: 'POST' });
+      const d = await res.json();
+      showToast(`🤖 Done! Scraped: ${d.scraped}, Published: ${d.published}` + (d.errors.length ? ` | Errors: ${d.errors.join(', ')}` : ''));
+      await loadJobs();
+    }
+
+    async function testWebhook() {
+      const res = await fetch('/api/settings/test-webhook', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) {
+        showToast('✅ Test payload sent to Webhook!');
+      } else {
+        showToast(`❌ Webhook failed: ${data.error}`, true);
       }
     }
 
