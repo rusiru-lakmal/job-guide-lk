@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>USA/UK Music Stories • Full-Auto Video Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen font-sans">
+  <header class="border-b border-zinc-800 bg-zinc-900/80 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-xl">🎵</div>
+        <div>
+          <h1 class="text-lg font-bold text-white">Cosmic & Mystery Viral Studio (USA / UK)</h1>
+          <p class="text-xs text-zinc-400">AI Cinematic Visuals • Popping Captions • US/UK Voiceover • Monetization Ready</p>
+        </div>
+      </div>
+      <button onclick="openSettings()" class="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-sm font-medium cursor-pointer">
+        ⚙️ Webhook & Auto-Pilot
+      </button>
+    </div>
+  </header>
+
+  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden max-w-md px-4 py-3 rounded-xl shadow-2xl border text-sm font-medium"></div>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+    <!-- Generator Bar -->
+    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <h2 class="text-sm font-bold text-amber-400">🎬 Create New Viral Space / Science / Mystery Video</h2>
+        <span class="text-xs text-zinc-400">Leave fields blank to auto-pick a viral mystery!</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <input id="gArtist" type="text" placeholder="Category (e.g. Space Mystery)" class="px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-sm" />
+        <input id="gSong" type="text" placeholder="Topic (e.g. Falling Into Jupiter)" class="px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-sm" />
+        <select id="gVoice" class="px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-sm">
+          <option value="us_male">🇺🇸 US Male (Andrew)</option>
+          <option value="us_female">🇺🇸 US Female (Jenny)</option>
+          <option value="uk_male">🇬🇧 UK Male (Ryan)</option>
+          <option value="uk_female">🇬🇧 UK Female (Sonia)</option>
+        </select>
+        <select id="gFormat" class="px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-sm">
+          <option value="reel">📱 Reel (9:16)</option>
+          <option value="landscape">🖥️ In-Stream (16:9)</option>
+        </select>
+        <button id="genBtn" onclick="generateStory()" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold cursor-pointer">
+          ✨ Generate Video
+        </button>
+      </div>
+    </div>
+
+    <!-- Stories Grid -->
+    <div id="storiesList" class="space-y-5"></div>
+  </main>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 hidden items-center justify-center p-4">
+    <div class="bg-zinc-900 border border-zinc-700 rounded-2xl max-w-lg w-full p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold">⚙️ USA/UK Page Automation Settings</h2>
+        <button onclick="closeSettings()" class="text-zinc-400 hover:text-white text-xl cursor-pointer">&times;</button>
+      </div>
+      <div class="space-y-3 text-sm">
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1">Make.com Webhook URL (for USA/UK FB Page)</label>
+          <input id="sWebhook" type="url" placeholder="https://hook.eu1.make.com/..." class="w-full px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-700 text-sm" />
+        </div>
+        <label class="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5 cursor-pointer text-xs">
+          <input id="sAuto" type="checkbox" />
+          <span>🤖 Enable Full Auto-Pilot (Auto-create & Auto-publish videos)</span>
+        </label>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="text-zinc-400">Run every</span>
+          <input id="sHours" type="number" min="1" max="24" class="w-16 px-2 py-1 rounded bg-zinc-950 border border-zinc-700 text-center" />
+          <span class="text-zinc-400">hours</span>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeSettings()" class="px-4 py-2 rounded-lg bg-zinc-800 text-sm cursor-pointer">Cancel</button>
+        <button onclick="saveSettings()" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold cursor-pointer">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function showToast(msg, isErr = false) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = `fixed bottom-5 right-5 z-50 max-w-md px-4 py-3 rounded-xl shadow-2xl border text-sm font-medium ${
+        isErr ? 'bg-rose-950 border-rose-700 text-rose-200' : 'bg-emerald-950 border-emerald-700 text-emerald-200'
+      }`;
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 4500);
+    }
+    function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    async function loadStories() {
+      const res = await fetch('/api/stories');
+      const data = await res.json();
+      const el = document.getElementById('storiesList');
+      if (!data.stories.length) {
+        el.innerHTML = `<div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-10 text-center text-zinc-400">Click <b>✨ Generate Video</b> above to create your first USA/UK Music Story video!</div>`;
+        return;
+      }
+      el.innerHTML = data.stories.map(st => `
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div class="lg:col-span-4 space-y-2">
+            ${st.video_path ? `<video controls class="w-full rounded-xl bg-black border border-zinc-800 max-h-80" src="${esc(st.video_path)}?t=${Date.now()}"></video>` : ''}
+            ${st.video_path ? `<a href="${esc(st.video_path)}" download="${esc(st.artist)}_${esc(st.song_title)}.mp4" class="block text-center px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold">⬇️ Download MP4</a>` : ''}
+          </div>
+          <div class="lg:col-span-8 flex flex-col justify-between gap-3">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <div class="text-base font-bold text-white">🎵 ${esc(st.artist)} — "${esc(st.song_title)}"</div>
+                <span class="px-2.5 py-1 rounded-full text-xs font-semibold ${st.status==='published' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}">${st.status}</span>
+              </div>
+              <textarea readonly rows="7" class="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-sm text-zinc-200">${esc(st.caption)}</textarea>
+            </div>
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div class="flex gap-2">
+                <button onclick="navigator.clipboard.writeText(${JSON.stringify(st.caption)}); showToast('📋 Caption copied!')" class="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold cursor-pointer">📋 Copy Caption</button>
+                <button onclick="deleteStory(${st.id})" class="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-rose-900 text-xs font-semibold cursor-pointer">🗑 Delete</button>
+              </div>
+              <button onclick="publishStory(${st.id})" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer">🚀 Publish via Webhook</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function generateStory() {
+      const btn = document.getElementById('genBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Rendering Video...';
+      try {
+        const res = await fetch('/api/stories/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            artist: document.getElementById('gArtist').value,
+            song_title: document.getElementById('gSong').value,
+            voice: document.getElementById('gVoice').value,
+            video_format: document.getElementById('gFormat').value,
+          }),
+        });
+        if (res.ok) {
+          showToast('🎬 Music Story Video created!');
+          await loadStories();
+        } else {
+          const d = await res.json();
+          showToast(d.detail || 'Failed', true);
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '✨ Generate Video';
+      }
+    }
+
+    async function publishStory(id) {
+      const res = await fetch(`/api/stories/${id}/publish`, { method: 'POST' });
+      const d = await res.json();
+      if (res.ok) {
+        showToast('🚀 Sent to Make.com Webhook!');
+        await loadStories();
+      } else {
+        showToast(d.detail || 'Publish failed', true);
+      }
+    }
+
+    async function deleteStory(id) {
+      await fetch(`/api/stories/${id}`, { method: 'DELETE' });
+      await loadStories();
+    }
+
+    async function openSettings() {
+      const s = await (await fetch('/api/settings')).json();
+      document.getElementById('sWebhook').value = s.music_webhook_url || '';
+      document.getElementById('sAuto').checked = !!s.music_autopilot_enabled;
+      document.getElementById('sHours').value = s.music_autopilot_hours || 6;
+      const m = document.getElementById('settingsModal');
+      m.classList.remove('hidden'); m.classList.add('flex');
+    }
+    function closeSettings() {
+      const m = document.getElementById('settingsModal');
+      m.classList.add('hidden'); m.classList.remove('flex');
+    }
+    async function saveSettings() {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          music_webhook_url: document.getElementById('sWebhook').value,
+          music_autopilot_enabled: document.getElementById('sAuto').checked,
+          music_autopilot_hours: parseInt(document.getElementById('sHours').value || '6', 10),
+        }),
+      });
+      closeSettings();
+      showToast('Settings saved!');
+    }
+
+    loadStories();
+  </script>
+</body>
+</html>
