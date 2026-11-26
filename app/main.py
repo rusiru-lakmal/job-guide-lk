@@ -10,7 +10,7 @@ from app.config import BASE_DIR, CARDS_DIR, get_settings, save_settings
 from app.database import get_conn, init_db, utc_now_iso
 from app.facebook import fetch_page_analytics, publish_to_facebook, verify_page_token
 from app.formatter import format_job_sinhala
-from app.scraper import classify_category, extract_closing_date, fetch_single_url_job, fetch_wp_json_jobs
+from app.scraper import classify_category, extract_closing_date, extract_salary, fetch_single_url_job, fetch_topjobs_lk, fetch_wp_json_jobs
 
 app = FastAPI(title="Sri Lanka Job News FB Studio")
 STATIC_DIR = BASE_DIR / "static"
@@ -35,6 +35,7 @@ class JobUpdate(BaseModel):
     card_subline_si: Optional[str] = None
     company: Optional[str] = None
     closing_date: Optional[str] = None
+    salary: Optional[str] = None
     category: Optional[str] = None
     regenerate_card: bool = True
 
@@ -45,6 +46,7 @@ class ManualImportRequest(BaseModel):
     title: str = ""
     company: str = ""
     closing_date: str = ""
+    salary: str = ""
     category: str = ""
     source_name: str = "Manual / FB Import"
 
@@ -82,9 +84,9 @@ def _insert_and_generate(job_data: dict) -> dict:
             """
             INSERT INTO jobs (
                 source_name, source_url, title_en, company, category,
-                closing_date, location, raw_excerpt, sinhala_post,
+                closing_date, salary, location, raw_excerpt, sinhala_post,
                 card_headline_si, card_subline_si, status, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
             """,
             (
                 job_data["source_name"],
@@ -93,6 +95,7 @@ def _insert_and_generate(job_data: dict) -> dict:
                 job_data.get("company", ""),
                 job_data.get("category", "General"),
                 job_data.get("closing_date", ""),
+                job_data.get("salary", ""),
                 job_data.get("location", "Sri Lanka"),
                 job_data.get("raw_excerpt", ""),
                 formatted["sinhala_post"],
@@ -139,7 +142,10 @@ async def scrape_sources(limit_per_source: int = 6):
 
     for src in sources:
         try:
-            items = await fetch_wp_json_jobs(src["name"], src["url"], limit=limit_per_source)
+            if "topjobs.lk" in src["url"].lower() or src["source_type"] == "topjobs":
+                items = await fetch_topjobs_lk(src["name"], limit=limit_per_source)
+            else:
+                items = await fetch_wp_json_jobs(src["name"], src["url"], limit=limit_per_source)
             for item in items:
                 with get_conn() as conn:
                     exists = conn.execute(
@@ -185,8 +191,9 @@ async def import_manual_job(req: ManualImportRequest):
             "company": req.company.strip(),
             "category": req.category.strip() or classify_category(title, excerpt),
             "closing_date": req.closing_date.strip() or extract_closing_date(excerpt),
+            "salary": req.salary.strip() or extract_salary(excerpt),
             "location": "Sri Lanka",
-            "raw_excerpt": excerpt[:1400],
+            "raw_excerpt": excerpt[:2400],
         }
 
     # Apply any explicit overrides
@@ -196,6 +203,8 @@ async def import_manual_job(req: ManualImportRequest):
         job_data["company"] = req.company.strip()
     if req.closing_date.strip():
         job_data["closing_date"] = req.closing_date.strip()
+    if req.salary.strip():
+        job_data["salary"] = req.salary.strip()
     if req.category.strip():
         job_data["category"] = req.category.strip()
 
@@ -222,6 +231,7 @@ def update_job(job_id: int, body: JobUpdate):
             "card_subline_si": body.card_subline_si if body.card_subline_si is not None else job["card_subline_si"],
             "company": body.company if body.company is not None else job["company"],
             "closing_date": body.closing_date if body.closing_date is not None else job["closing_date"],
+            "salary": body.salary if body.salary is not None else job.get("salary", ""),
             "category": body.category if body.category is not None else job["category"],
         }
 
@@ -229,7 +239,7 @@ def update_job(job_id: int, body: JobUpdate):
             """
             UPDATE jobs SET
                 sinhala_post = ?, card_headline_si = ?, card_subline_si = ?,
-                company = ?, closing_date = ?, category = ?
+                company = ?, closing_date = ?, salary = ?, category = ?
             WHERE id = ?
             """,
             (
@@ -238,6 +248,7 @@ def update_job(job_id: int, body: JobUpdate):
                 fields["card_subline_si"],
                 fields["company"],
                 fields["closing_date"],
+                fields["salary"],
                 fields["category"],
                 job_id,
             ),
@@ -253,6 +264,37 @@ def update_job(job_id: int, body: JobUpdate):
     with get_conn() as conn:
         updated = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
     return {"job": _row_to_dict(updated)}
+
+
+@app.post("/api/jobs/reformat-all")
+def reformat_all_pending():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM jobs WHERE status = 'pending'").fetchall()
+    updated_count = 0
+    for row in rows:
+        job = _row_to_dict(row)
+        if not job.get("salary"):
+            job["salary"] = extract_salary(job.get("raw_excerpt", ""))
+        formatted = format_job_sinhala(job)
+        merged = {**job, **formatted}
+        card_path = generate_job_card(job["id"], merged)
+        with get_conn() as conn:
+            conn.execute(
+                """
+                UPDATE jobs SET salary = ?, sinhala_post = ?, card_headline_si = ?, card_subline_si = ?, card_image_path = ?
+                WHERE id = ?
+                """,
+                (
+                    job.get("salary", ""),
+                    formatted["sinhala_post"],
+                    formatted["card_headline_si"],
+                    formatted["card_subline_si"],
+                    card_path or job["card_image_path"],
+                    job["id"],
+                ),
+            )
+        updated_count += 1
+    return {"updated": updated_count}
 
 
 @app.post("/api/jobs/{job_id}/reformat")

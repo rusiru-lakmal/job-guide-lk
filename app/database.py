@@ -42,6 +42,7 @@ def init_db():
                 company TEXT NOT NULL DEFAULT '',
                 category TEXT NOT NULL DEFAULT 'General',
                 closing_date TEXT NOT NULL DEFAULT '',
+                salary TEXT NOT NULL DEFAULT '',
                 location TEXT NOT NULL DEFAULT 'Sri Lanka',
                 raw_excerpt TEXT NOT NULL DEFAULT '',
                 sinhala_post TEXT NOT NULL DEFAULT '',
@@ -56,6 +57,11 @@ def init_db():
             );
             """
         )
+
+        # Safe migration for existing databases missing the salary column
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(jobs)").fetchall()]
+        if "salary" not in cols:
+            conn.execute("ALTER TABLE jobs ADD COLUMN salary TEXT NOT NULL DEFAULT ''")
 
         # Seed default sources requested by the user
         default_sources = [

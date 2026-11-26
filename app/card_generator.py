@@ -7,28 +7,32 @@ from app.formatter import category_to_sinhala
 
 THEME_PALETTES = {
     "Government": {
-        "bg": "linear-gradient(135deg, #064e3b 0%, #0f766e 55%, #115e59 100%)",
-        "accent": "#fbbf24",
-        "badge_bg": "rgba(251, 191, 36, 0.18)",
-        "badge_text": "#fde68a",
+        "top_bar": "#b91c1c",       # Bold newspaper crimson
+        "banner_bg": "#0f172a",     # Deep navy pill
+        "role_color": "#b91c1c",
+        "accent": "#fbbf24",        # Gold text on navy
+        "date_bg": "#dc2626",
     },
     "Banking & Finance": {
-        "bg": "linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #1d4ed8 100%)",
-        "accent": "#38bdf8",
-        "badge_bg": "rgba(56, 189, 248, 0.18)",
-        "badge_text": "#bae6fd",
+        "top_bar": "#1d4ed8",       # Royal blue
+        "banner_bg": "#0f172a",
+        "role_color": "#1e40af",
+        "accent": "#fbbf24",
+        "date_bg": "#b91c1c",
     },
     "IT & Engineering": {
-        "bg": "linear-gradient(135deg, #1e1b4b 0%, #4338ca 55%, #0284c7 100%)",
-        "accent": "#a5f3fc",
-        "badge_bg": "rgba(165, 243, 252, 0.18)",
-        "badge_text": "#cffafe",
+        "top_bar": "#4338ca",       # Indigo
+        "banner_bg": "#1e1b4b",
+        "role_color": "#4338ca",
+        "accent": "#38bdf8",
+        "date_bg": "#dc2626",
     },
     "Private": {
-        "bg": "linear-gradient(135deg, #18181b 0%, #334155 55%, #0f172a 100%)",
-        "accent": "#34d399",
-        "badge_bg": "rgba(52, 211, 153, 0.18)",
-        "badge_text": "#a7f3d0",
+        "top_bar": "#047857",       # Emerald
+        "banner_bg": "#0f172a",
+        "role_color": "#065f46",
+        "accent": "#fbbf24",
+        "date_bg": "#dc2626",
     },
 }
 
@@ -36,16 +40,22 @@ THEME_PALETTES = {
 def generate_job_card(job_id: int, job: Dict) -> str:
     settings = get_settings()
     chrome_path = settings.get("chrome_path", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
-    brand_name = html.escape(settings.get("page_brand_name", "Sri Lanka Job News"))
+    brand_name = html.escape(settings.get("page_brand_name", "SL රැකියා මග - Job Guide LK"))
 
     category = job.get("category", "General")
     palette = THEME_PALETTES.get(category, THEME_PALETTES["Private"])
     cat_si = html.escape(category_to_sinhala(category))
     headline = html.escape(job.get("card_headline_si") or job.get("title_en") or "නව රැකියා ඇබෑර්තු")
-    subline = html.escape(job.get("card_subline_si") or "")
-    company = html.escape(job.get("company") or "Sri Lanka")
+    company = html.escape(job.get("company") or "ශ්‍රී ලංකාවේ ප්‍රමුඛ ආයතනයක්")
+    location = html.escape(job.get("location") or "Sri Lanka")
     closing_date = html.escape(job.get("closing_date") or "වෙබ් අඩවිය බලන්න")
-    source_name = html.escape(job.get("source_name") or "Job News")
+    salary = html.escape((job.get("salary") or "").strip())
+
+    salary_badge_html = (
+        f'<div class="salary-pill">💰 වැටුප: {salary}</div>'
+        if salary
+        else ""
+    )
 
     html_content = f"""<!DOCTYPE html>
 <html lang="si">
@@ -57,160 +67,184 @@ def generate_job_card(job_id: int, job: Dict) -> str:
     width: 1080px;
     height: 1080px;
     font-family: 'Sinhala Sangam MN', 'Sinhala MN', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: {palette['bg']};
-    color: #ffffff;
+    background: #f8fafc;
+    color: #0f172a;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 64px;
     position: relative;
     overflow: hidden;
   }}
-  .glow-1 {{
+  /* Subtle editorial dot pattern */
+  .bg-pattern {{
     position: absolute;
-    width: 520px;
-    height: 520px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 70%);
-    top: -120px;
-    right: -120px;
-  }}
-  .glow-2 {{
-    position: absolute;
-    width: 440px;
-    height: 440px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 70%);
-    bottom: -100px;
-    left: -100px;
+    inset: 0;
+    background-image: radial-gradient(#cbd5e1 1.5px, transparent 1.5px);
+    background-size: 28px 28px;
+    opacity: 0.45;
+    z-index: 0;
   }}
   .top-bar {{
+    background: {palette['top_bar']};
+    color: #ffffff;
+    padding: 26px 48px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     z-index: 2;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
   }}
-  .brand-pill {{
-    background: rgba(255,255,255,0.14);
-    border: 1px solid rgba(255,255,255,0.25);
-    padding: 14px 28px;
-    border-radius: 999px;
+  .top-cat {{
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+  }}
+  .top-brand {{
     font-size: 24px;
     font-weight: 700;
-    letter-spacing: 0.4px;
-  }}
-  .cat-pill {{
-    background: {palette['badge_bg']};
-    border: 1.5px solid {palette['accent']};
-    color: {palette['badge_text']};
-    padding: 14px 28px;
+    background: rgba(0, 0, 0, 0.22);
+    padding: 8px 22px;
     border-radius: 999px;
-    font-size: 24px;
-    font-weight: 700;
   }}
-  .center-card {{
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 36px;
-    padding: 56px;
+  .main-content {{
     z-index: 2;
+    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 28px;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 36px 56px;
+    gap: 26px;
   }}
-  .hiring-tag {{
-    color: {palette['accent']};
-    font-size: 26px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 2px;
+  .vacancies-title {{
+    font-size: 74px;
+    font-weight: 900;
+    color: #0f172a;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
   }}
-  .headline {{
-    font-size: 56px;
+  .vacancies-title span {{
+    color: {palette['top_bar']};
+  }}
+  .role-headline {{
+    font-size: 44px;
     font-weight: 800;
-    line-height: 1.28;
-    color: #ffffff;
+    color: {palette['role_color']};
+    line-height: 1.3;
+    max-width: 940px;
     word-break: break-word;
   }}
-  .subline {{
-    font-size: 32px;
-    line-height: 1.45;
-    color: rgba(255, 255, 255, 0.88);
-    font-weight: 500;
+  .salary-pill {{
+    background: linear-gradient(90deg, #fef08a, #fde047);
+    border: 2.5px solid #ca8a04;
+    color: #713f12;
+    font-size: 28px;
+    font-weight: 800;
+    padding: 12px 34px;
+    border-radius: 999px;
+    box-shadow: 0 8px 20px rgba(202, 138, 4, 0.2);
   }}
-  .meta-grid {{
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-top: 12px;
+  .institution-banner {{
+    width: 100%;
+    background: {palette['banner_bg']};
+    border-radius: 36px;
+    padding: 34px 44px;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.24);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    border: 3px solid {palette['accent']};
   }}
-  .meta-box {{
-    background: rgba(0, 0, 0, 0.24);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 22px;
-    padding: 22px 26px;
+  .inst-name {{
+    font-size: 46px;
+    font-weight: 800;
+    color: {palette['accent']};
+    line-height: 1.25;
   }}
-  .meta-label {{
-    font-size: 20px;
-    color: rgba(255, 255, 255, 0.7);
-    margin-bottom: 8px;
-  }}
-  .meta-value {{
+  .inst-loc {{
     font-size: 26px;
-    font-weight: 700;
+    font-weight: 600;
+    color: #e2e8f0;
+  }}
+  .date-row {{
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin-top: 6px;
+  }}
+  .date-line {{
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: {palette['date_bg']};
+    border-radius: 999px;
+    z-index: 1;
+  }}
+  .date-pill {{
+    position: relative;
+    z-index: 2;
+    background: {palette['date_bg']};
     color: #ffffff;
+    font-size: 32px;
+    font-weight: 800;
+    padding: 14px 42px;
+    border-radius: 16px;
+    box-shadow: 0 10px 24px rgba(185, 28, 28, 0.3);
   }}
   .footer {{
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     z-index: 2;
-    background: rgba(0, 0, 0, 0.28);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: 24px;
-    padding: 24px 34px;
+    background: #0f172a;
+    color: #ffffff;
+    padding: 26px 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
   }}
-  .cta {{
+  .footer-cta {{
     font-size: 26px;
     font-weight: 700;
-    color: {palette['accent']};
+    color: #fbbf24;
   }}
-  .source {{
-    font-size: 22px;
-    color: rgba(255, 255, 255, 0.75);
+  .footer-sub {{
+    font-size: 21px;
+    color: #cbd5e1;
   }}
 </style>
 </head>
 <body>
-  <div class="glow-1"></div>
-  <div class="glow-2"></div>
+  <div class="bg-pattern"></div>
 
   <div class="top-bar">
-    <div class="brand-pill">🇱🇰 {brand_name}</div>
-    <div class="cat-pill">{cat_si}</div>
+    <div class="top-cat">🇱🇰 {cat_si}</div>
+    <div class="top-brand">{brand_name}</div>
   </div>
 
-  <div class="center-card">
-    <div class="hiring-tag">WE ARE HIRING • නව රැකියා අවස්ථා</div>
-    <div class="headline">{headline}</div>
-    <div class="subline">{subline}</div>
-    <div class="meta-grid">
-      <div class="meta-box">
-        <div class="meta-label">🏢 ආයතනය / Institution</div>
-        <div class="meta-value">{company}</div>
-      </div>
-      <div class="meta-box">
-        <div class="meta-label">📅 අවසන් දිනය / Closing Date</div>
-        <div class="meta-value">{closing_date}</div>
-      </div>
+  <div class="main-content">
+    <div class="vacancies-title">පුරප්පාඩු <span>•</span> Vacancies</div>
+    <div class="role-headline">{headline}</div>
+    {salary_badge_html}
+
+    <div class="institution-banner">
+      <div class="inst-name">🏢 {company}</div>
+      <div class="inst-loc">📍 {location}</div>
+    </div>
+
+    <div class="date-row">
+      <div class="date-line"></div>
+      <div class="date-pill">⏳ අවසන් දිනය: {closing_date}</div>
     </div>
   </div>
 
   <div class="footer">
-    <div class="cta">👇 සම්පූර්ණ විස්තර සහ Apply Link එක Caption එකේ!</div>
-    <div class="source">via {source_name}</div>
+    <div class="footer-cta">👇 සම්පූර්ණ විස්තර සහ අයදුම් කිරීමට Caption එකේ Link එක බලන්න</div>
+    <div class="footer-sub">දිනපතා නවතම රැකියා ඇබෑර්තු සඳහා අපේ Facebook Page එක Follow කරන්න 🔔</div>
   </div>
 </body>
 </html>
@@ -226,6 +260,7 @@ def generate_job_card(job_id: int, job: Dict) -> str:
             "--headless=new",
             "--disable-gpu",
             "--no-sandbox",
+            "--user-data-dir=/tmp/chrome-headless-profile",
             "--hide-scrollbars",
             "--window-size=1080,1080",
             f"--screenshot={png_path}",

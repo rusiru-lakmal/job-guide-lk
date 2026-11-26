@@ -24,6 +24,9 @@
           <span id="scrapeSpinner" class="hidden animate-spin">⏳</span>
           <span>🔄 Fetch New Jobs</span>
         </button>
+        <button id="reformatAllBtn" onclick="reformatAllPending()" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold transition cursor-pointer">
+          ✨ Re-format All
+        </button>
         <button onclick="openModal('manualModal')" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition cursor-pointer">
           ➕ Import Link / FB Post
         </button>
@@ -401,7 +404,7 @@
 
             <div class="text-sm font-medium text-slate-300">${escapeHtml(job.title_en)}</div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
               <div>
                 <label class="block text-[11px] text-slate-400 mb-1">Card Headline (සිංහල)</label>
                 <input id="headline-${job.id}" value="${escapeHtml(job.card_headline_si)}" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs" />
@@ -409,6 +412,10 @@
               <div>
                 <label class="block text-[11px] text-slate-400 mb-1">Company / Institution</label>
                 <input id="company-${job.id}" value="${escapeHtml(job.company)}" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs" />
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-400 mb-1">💰 Salary (වැටුප)</label>
+                <input id="salary-${job.id}" value="${escapeHtml(job.salary || '')}" placeholder="e.g. Rs. 85,000+" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-amber-300" />
               </div>
               <div>
                 <label class="block text-[11px] text-slate-400 mb-1">Closing Date</label>
@@ -480,6 +487,7 @@
         sinhala_post: document.getElementById(`post-${id}`).value,
         card_headline_si: document.getElementById(`headline-${id}`).value,
         company: document.getElementById(`company-${id}`).value,
+        salary: document.getElementById(`salary-${id}`).value,
         closing_date: document.getElementById(`closing-${id}`).value,
         regenerate_card: regenerateCard,
       };
@@ -503,6 +511,21 @@
         await loadJobs();
       } else {
         showToast('Failed to re-format.', true);
+      }
+    }
+
+    async function reformatAllPending() {
+      const btn = document.getElementById('reformatAllBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Updating...';
+      try {
+        const res = await fetch('/api/jobs/reformat-all', { method: 'POST' });
+        const data = await res.json();
+        showToast(`✨ Upgraded ${data.updated} pending posts & cards!`);
+        await loadJobs();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '✨ Re-format All';
       }
     }
 

@@ -65,6 +65,23 @@ def extract_closing_date(text: str) -> str:
     return ""
 
 
+def extract_salary(text: str) -> str:
+    patterns = [
+        r"(?:Salary|Remuneration|Pay\s*Scale|Basic\s*Salary|Monthly\s*Salary|වැටුප)\s*[:\-–]?\s*((?:Rs\.?|LKR|රු\.?)\s*[\d,]+(?:\.\d{2})?(?:\s*[-–to]+\s*(?:Rs\.?|LKR|රු\.?)?\s*[\d,]+(?:\.\d{2})?)?(?:\s*(?:per\s*month|monthly|/|p\.m\.|upwards|\+))?)",
+        r"((?:Rs\.?|LKR)\s*[\d,]{4,}(?:\.\d{2})?(?:\s*[-–to]+\s*(?:Rs\.?|LKR)?\s*[\d,]{4,}(?:\.\d{2})?)?(?:\s*(?:per\s*month|monthly|upwards|\+))?)",
+        r"(?:Salary|Remuneration|Pay\s*Scale)\s*[:\-–]\s*([A-Za-z0-9\s,.\-/]{4,45})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            val = re.sub(r"\s+", " ", match.group(1)).strip(" .,-:")
+            if len(val) > 45:
+                val = val[:45].rsplit(" ", 1)[0]
+            if val and any(ch.isdigit() for ch in val):
+                return val
+    return ""
+
+
 def classify_category(title: str, text: str) -> str:
     combined = f"{title} {text[:400]}".lower()
     if any(k in combined for k in ("ministry", "government", "gazette", "university", "department", "pradeshiya", "provincial", "municipal", "authority", "board of investment", "institute")):
@@ -109,9 +126,10 @@ async def fetch_wp_json_jobs(source_name: str, base_url: str, limit: int = 8) ->
 
         # Skip weekly gazette PDF roundups if desired? No, keep them as they are popular on gazette.lk!
         content_html = post.get("content", {}).get("rendered", "") or post.get("excerpt", {}).get("rendered", "")
-        excerpt = clean_html_text(content_html, max_chars=1400)
+        excerpt = clean_html_text(content_html, max_chars=2400)
         company = extract_company(raw_title)
         closing_date = extract_closing_date(excerpt)
+        salary = extract_salary(excerpt)
         category = classify_category(raw_title, excerpt)
 
         results.append(
@@ -122,7 +140,65 @@ async def fetch_wp_json_jobs(source_name: str, base_url: str, limit: int = 8) ->
                 "company": company,
                 "category": category,
                 "closing_date": closing_date,
+                "salary": salary,
                 "location": "Sri Lanka",
+                "raw_excerpt": excerpt,
+            }
+        )
+    return results
+
+
+async def fetch_topjobs_lk(source_name: str = "TopJobs.lk", limit: int = 8) -> List[Dict]:
+    url = "https://www.topjobs.lk/applicant/vacancybyfunctionalarea.jsp?jst=OPEN"
+    async with httpx.AsyncClient(timeout=25.0, follow_redirects=True, headers=HEADERS) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+    results = []
+    rows = soup.select('tr[id^="tr"]')
+    for idx, row in enumerate(rows[:limit]):
+        tds = row.find_all("td")
+        if len(tds) < 6:
+            continue
+
+        h2 = row.find("h2")
+        h1 = row.find("h1")
+        role = h2.get_text(" ", strip=True) if h2 else ""
+        company = h1.get_text(" ", strip=True) if h1 else ""
+        if not role:
+            continue
+
+        jc_el = row.select_one('span[id^="hdnJC"]')
+        ec_el = row.select_one('span[id^="hdnEC"]')
+        ac_el = row.select_one('span[id^="hdnAC"]')
+        jc = jc_el.get_text(strip=True) if jc_el else ""
+        ec = ec_el.get_text(strip=True) if ec_el else "DEFZZZ"
+        ac = ac_el.get_text(strip=True) if ac_el else "DEFZZZ"
+
+        job_link = (
+            f"https://www.topjobs.lk/employer/JobAdvertismentServlet"
+            f"?rid={idx}&ac={ac}&jc={jc}&ec={ec}&pg=applicant/vacancybyfunctionalarea.jsp"
+            if jc
+            else url
+        )
+
+        desc = " ".join(tds[3].get_text(" ", strip=True).split()) if len(tds) > 3 else ""
+        closing_date = " ".join(tds[5].get_text(" ", strip=True).split()) if len(tds) > 5 else ""
+        location = (" ".join(tds[6].get_text(" ", strip=True).split()) if len(tds) > 6 else "") or "Sri Lanka"
+        title_en = f"{role} - {company}" if company else role
+
+        excerpt = desc if desc and desc.lower() != "please refer the vacancy" else f"{role} vacancy at {company} ({location})."
+        results.append(
+            {
+                "source_name": source_name,
+                "source_url": job_link,
+                "title_en": title_en,
+                "company": company,
+                "category": classify_category(title_en, excerpt),
+                "closing_date": closing_date,
+                "salary": extract_salary(excerpt),
+                "location": location,
                 "raw_excerpt": excerpt,
             }
         )
@@ -142,7 +218,7 @@ async def fetch_single_url_job(url: str, source_name: str = "Manual Link") -> Di
     title = html.unescape(title)
 
     main_el = soup.find("article") or soup.find("main") or soup.body
-    excerpt = clean_html_text(str(main_el) if main_el else resp.text, max_chars=1400)
+    excerpt = clean_html_text(str(main_el) if main_el else resp.text, max_chars=2400)
 
     return {
         "source_name": source_name,
@@ -151,6 +227,7 @@ async def fetch_single_url_job(url: str, source_name: str = "Manual Link") -> Di
         "company": extract_company(title),
         "category": classify_category(title, excerpt),
         "closing_date": extract_closing_date(excerpt),
+        "salary": extract_salary(excerpt),
         "location": "Sri Lanka",
         "raw_excerpt": excerpt,
     }
